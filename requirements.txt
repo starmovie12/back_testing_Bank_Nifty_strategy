@@ -1,0 +1,11 @@
+# BANKNIFTY Backtest Engine (engine-v2.0) — Dependencies
+# Target: Python 3.11+ on Android Termux and desktop Linux
+
+# Core runtime dependency (stdlib + numpy only)
+numpy>=1.26.0
+
+# Optional: Parquet support (updl store/ layout). CSV mode works without pyarrow.
+# pyarrow>=14.0.0
+
+# Dev / test only (required to run the 62-test acceptance suite)
+# pytest>=7.4.0

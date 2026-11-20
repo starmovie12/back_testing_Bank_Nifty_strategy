@@ -1,0 +1,239 @@
+# ==============================================================================
+# BANKNIFTY BACKTEST ENGINE — LOCKED CONFIGURATION
+# Engine Tag : engine-v2.0
+# PRD Version: Backtest Engine PRD V4.0 (20 Nov 2026)
+# Authority  : OWNER_RULES_V5_2.md > Backtest_Engine_PRD_V3.1 > Audit Fixes
+#
+# OPEN OWNER DECISIONS (OWNER_DECISION_NEEDED):
+#   1. base_capital          : Must be set by owner before running (empty -> exit 2).
+#                              Recommended: "50000" (INR).
+#   2. per_trade_max_risk_pct: Default "" (None). Recommended: "0.10" if
+#                              base_capital >= 20300, else "" (None).
+#   3. holdout_start         : Default "2026-07-06" (owner confirm).
+#   4. holdout_prior_opens   : Default 1 (S2 open on 2026-11-18 -> K = 2).
+#   5. nse_freeze_qty        : Default "" (None). Confirm from latest NSE
+#                              BankNifty circular before live/paper deployment.
+#   6. lot_size              : Default [] (contracts.csv is primary).
+#   7. nse_holidays          : Default [] (optional YYYY-MM-DD list).
+#
+# NOTE: Decimal-typed values are stored as exact strings so tomllib loads them
+# without IEEE-754 float rounding. Nullable keys use "" to represent None.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Capital, Sizing & Risk Shell (§5, §7, Niyam 10, Niyam 13)
+# ------------------------------------------------------------------------------
+base_capital = ""                  # Decimal INR (> 0); REQUIRED (empty -> exit 2). OWNER_DECISION_NEEDED
+capital_use_pct = "0.85"           # Decimal fraction (0, 1] — Shart 1 capital limit
+capital_exception_pct = "1.00"     # Decimal fraction (0, 1] — Small-balance 1-lot exception
+day_cap_pct = "0.15"               # Decimal fraction (0, 1] — Shart 2 preventive daily loss cap
+per_trade_max_risk_pct = ""        # Decimal | None ("" = None). OWNER_DECISION_NEEDED (recommend "0.10" if base_capital >= 20300)
+week_dd_max_pct = "0.15"           # Decimal fraction (0, 1] — Dynamic weekly max drawdown gate
+max_lots = ""                      # int | None ("" = None; V5.2 Rule 2.1 removes fixed lot cap)
+max_entries_per_day = ""           # int | None ("" = None; V5.2 Rule 4.1 unlimited daily entries)
+cooloff_min = 0                    # int minutes (>= 0; V5.2 Rule 4.3 zero forced cool-off)
+cap_basis = "stop"                 # str: "stop" | "premium"
+fill_buf = "0.01"                  # Decimal fraction (>= 0) — signal-time pre-sizing buffer
+
+# ------------------------------------------------------------------------------
+# Timing, Cutoffs & Execution (§2 Niyam 9, §7, §11.2, §11.3)
+# ------------------------------------------------------------------------------
+decision_step_min = 1              # int minutes (>= 1)
+entry_window_start = "09:30"       # str HH:MM IST (inclusive >=)
+last_entry_time = "14:45"          # str HH:MM IST (strict <; max permitted bar label 14:44)
+expiry_last_entry_time = "13:00"   # str HH:MM IST (strict <; max permitted bar label 12:59)
+force_flat_time = "15:10"          # str HH:MM IST (inclusive >=)
+expiry_force_flat_time = "13:30"   # str HH:MM IST (inclusive >=)
+fill_wait_bars = 2                 # int bars (>= 0) — max stale wait before SKIP_STALE_CANCEL
+exit_wait_bars = 2                 # int bars (>= 0) — max stale wait before no_bar fallback
+tick_size = "0.05"                 # Decimal INR (> 0)
+
+# ------------------------------------------------------------------------------
+# Spread, Slippage & Cost Scenarios (§7, §10.4)
+# ------------------------------------------------------------------------------
+half_spread = "0.50"               # Decimal INR/unit/side (BASE)
+slippage = "0.20"                  # Decimal INR/unit/side (BASE)
+spread_mult_open_close = "4.0"     # Decimal multiplier (09:15-09:24 and final close_window_minutes)
+spread_mult_expiry = "3.0"         # Decimal multiplier (dte == 0)
+spread_mult_normal = "2.0"         # Decimal multiplier (all other times)
+close_window_minutes = 25          # int minutes before force-flat (14:45-15:10 normal; 13:05-13:30 expiry)
+no_bar_cost_mult = "2.0"           # Decimal multiplier on exit-side spread & slippage for no_bar fallback
+stress_charges_mult = "1.0"        # Decimal multiplier on charges in STRESS
+stress_spread_mult = "2.0"         # Decimal multiplier on spread in STRESS
+stress_slippage_mult = "2.0"       # Decimal multiplier on slippage in STRESS
+
+# ------------------------------------------------------------------------------
+# Data Ingestion & Calendar (§7, §10.1, §10.2)
+# ------------------------------------------------------------------------------
+data_layout = "auto"               # str: "auto" | "parquet" | "csv"
+warmup_days = 20                   # int trading days (>= 1)
+coverage_min = 0.95                # float fraction (0, 1]
+chain_band_pct = 2.0               # float percent (0, 6]
+cache_band_pct = 6.0               # float percent (0, 20]
+nse_holidays = []                  # list[str] YYYY-MM-DD (optional). OWNER_DECISION_NEEDED
+lot_size = []                      # list[dict] dated fallback table (contracts.csv is primary). OWNER_DECISION_NEEDED
+
+# ------------------------------------------------------------------------------
+# Holdout & Weekly Progressive Gates (§6, §7)
+# ------------------------------------------------------------------------------
+holdout_start = "2026-07-06"       # str YYYY-MM-DD. OWNER_DECISION_NEEDED
+holdout_max_opens = 1              # int count (>= 1)
+holdout_prior_opens = 1            # int count (>= 0; S2 open on 2026-11-18). OWNER_DECISION_NEEDED
+week_min_trades = 3                # int trades/track/week
+final_streak_weeks = 4             # int consecutive PASS weeks for WEEKLY_PASS
+final_min_trades = 20              # int combined span trades/track for WEEKLY_PASS
+max_paused_weeks = 2               # int max consecutive LOW_SAMPLE weeks before streak reset
+window_weeks = 1                   # int ISO weeks per eval block (1 default; S4: ceil(3/rate))
+paper_min_trades = 60              # int live paper trades gate after PAPER_READY
+
+# ------------------------------------------------------------------------------
+# Liquidity & Live-Bot Parity Contracts (§7, §9)
+# ------------------------------------------------------------------------------
+liquidity_warn_lots = 3            # int lots threshold for liquidity_warn flag
+balance_max_age_sec = 30           # int seconds (Live-Bot Parity validator)
+nse_freeze_qty = ""                # int | None ("" = None; qty from NSE circular). OWNER_DECISION_NEEDED
+
+# ------------------------------------------------------------------------------
+# Statistical & Robustness Gates (§4.2, §7, §12.1)
+# ------------------------------------------------------------------------------
+seed = 42                          # int PRNG master seed
+min_trades = 100                   # int DESIGN gate minimum trades
+max_p_value = 0.05                 # float DESIGN gate p-value threshold
+min_positive_folds_pct = 60.0      # float DESIGN gate minimum positive folds percent
+stability_folds = 5                # int DESIGN stability folds
+holdout_min_trades = 20            # int HOLDOUT gate minimum trades
+holdout_max_p_value = 0.10         # float HOLDOUT gate p-value threshold
+holdout_stability_folds = 3        # int HOLDOUT stability folds
+random_runs = 1000                 # int random-entry permutations (SeedSequence([seed, 1]))
+mc_runs = 1000                     # int bootstrap (stream 2) & Monte Carlo (stream 3) iterations
+
+# ------------------------------------------------------------------------------
+# Diagnosis & Report Scaling (§7, §12.1, §12.2)
+# ------------------------------------------------------------------------------
+diag_horizons_min = [1, 3, 5, 10, 15, 30, 60]  # list[int] entry-edge horizons (minutes)
+diag_random_runs = 200             # int full entry-edge random baseline runs (stream 13)
+diag_perm_runs = 2000              # int full slice permutation runs
+diag_perm_batch = 100              # int streaming permutation chunk size (memory guard)
+diag_lite_random_runs = 50         # int lite entry-edge runs
+diag_lite_perm_runs = 500          # int lite slice permutation runs
+diag_min_n = 20                    # int minimum trades per slice cell for permutation test
+diag_fdr_q = 0.10                  # float Benjamini-Hochberg FDR threshold
+diag_recovery_min = 15             # int post-stop recovery scan window (minutes)
+diag_target_follow_min = 30        # int post-target follow-through scan window (minutes)
+diag_top_k = 10                    # int top findings/codes displayed in DIAGNOSIS.md
+handoff_max_lines = 200            # int strict line cap for AI_HANDOFF.md
+handoff_max_bytes = 24576          # int strict byte cap for AI_HANDOFF.md
+report_html_max_trade_rows = 500   # int max inline trade rows in REPORT.html (rest in Others + CSV)
+
+# ------------------------------------------------------------------------------
+# MACHINE KNOBS (Overridable via CLI/env without affecting trade outputs; §7)
+# ------------------------------------------------------------------------------
+base_dir = "~/storage/downloads/BankNiftyBT"  # Machine Knob: data + output root
+cache_dir = "~/.banknifty-bt/cache"           # Machine Knob: internal Termux cache (never FUSE)
+workers = 0                                   # Machine Knob: 0 = auto min(4, max(1, cpu_count // 2))
+peak_memory_mb = 512                          # Machine Knob: RSS memory budget (MB)
+batch_days = 20                               # Machine Knob: resident trading days per batch
+diag_level = "full"                           # Machine Knob: "full" | "lite"
+
+# ------------------------------------------------------------------------------
+# updl Column Mapping (§7, §10.1)
+# ------------------------------------------------------------------------------
+[column_map]
+ts_open = "ts_open"
+open = "open"
+high = "high"
+low = "low"
+close = "close"
+volume = "volume"
+oi = "oi"
+strike = "strike"
+option_type = "option_type"
+expiry = "expiry"
+is_stale = "is_stale"
+is_filled = "is_filled"
+available_from_ts = "available_from_ts"
+session_type = "session_type"
+iv_status = "iv_status"
+half_spread_proxy = "half_spread_PROXY"
+
+# ------------------------------------------------------------------------------
+# Verified Per-Order Upstox Charges — Dated Schedule (§7, §10.3)
+# All rates stored as exact Decimal strings; rounded once per order (ROUND_HALF_UP).
+# ------------------------------------------------------------------------------
+[[charges]]
+effective_from = "1970-01-01"
+brokerage_flat = "30.00"           # INR flat per executed BUY or SELL order
+brokerage_in_gst_base = true
+stt_sell_rate = "0.0010"           # 0.10% on SELL premium value (prior to 2026-04-01)
+stt_in_gst_base = false
+exchange_rate = "0.00035"          # 0.035% on BUY + SELL premium value
+exchange_in_gst_base = true
+ipft_rate = "0.000005"             # 0.0005% (INR 50 / crore) on BUY + SELL premium value
+ipft_in_gst_base = false
+sebi_rate = "0.000001"             # 0.0001% (INR 10 / crore) on BUY + SELL premium value
+sebi_in_gst_base = true
+stamp_buy_rate = "0.00003"         # 0.003% on BUY premium value
+stamp_in_gst_base = false
+gst_rate = "0.18"                  # 18.0% on GST-base components (brokerage + exchange + SEBI)
+
+[[charges]]
+effective_from = "2026-04-01"
+brokerage_flat = "30.00"           # INR flat per executed BUY or SELL order
+brokerage_in_gst_base = true
+stt_sell_rate = "0.0015"           # 0.15% on SELL premium value (>= 2026-04-01)
+stt_in_gst_base = false
+exchange_rate = "0.00035"          # 0.035% on BUY + SELL premium value
+exchange_in_gst_base = true
+ipft_rate = "0.000005"             # 0.0005% (INR 50 / crore) on BUY + SELL premium value
+ipft_in_gst_base = false
+sebi_rate = "0.000001"             # 0.0001% (INR 10 / crore) on BUY + SELL premium value
+sebi_in_gst_base = true
+stamp_buy_rate = "0.00003"         # 0.003% on BUY premium value
+stamp_in_gst_base = false
+gst_rate = "0.18"                  # 18.0% on GST-base components (brokerage + exchange + SEBI)
+
+# ------------------------------------------------------------------------------
+# Diagnosis Detector Thresholds — 19 Locked Keys (§7, §12.2)
+# ------------------------------------------------------------------------------
+[diag_thresholds]
+min_impact_pct_capital = 0.5
+cost_share_yellow = 0.35
+cost_share_red = 0.60
+shakeout_share = 0.35
+shakeout_share_red = 0.50
+gaveback_share = 0.20
+gaveback_mfe_r = 1.0
+target_early_follow_r = 1.0
+target_early_share = 0.40
+left_on_table_capture = 0.40
+conc_top_k = 3
+conc_share = 0.80
+skip_share = 0.30
+nobar_share = 0.02
+trend_eff = 0.6
+range_eff = 0.25
+m_warn = 4
+stale_entry_share = 0.10
+red_impact_pct_capital = 5.0
+
+# ------------------------------------------------------------------------------
+# Diagnosis Grids, Buckets & Handoff Truncation Order (§7, §12.2)
+# ------------------------------------------------------------------------------
+[diag_grid]
+cf_hold_min = [5, 10, 15, 30, 60]
+cf_stop_mult = [0.5, 0.75, 1.25, 1.5, 2.0]
+cf_target_r = [0.5, 1.0, 1.5, 2.0, 3.0]
+cf_be_r = [0.5, 1.0]
+cf_trail_r = 1.0
+cf_lite = ["CF-ACTUAL", "CF-HOLD(H*)", "CF-STOPx1.5", "CF-TARGETx2", "CF-BE(1.0)"]
+entry_time_bucket_min = 30
+dte_buckets = ["0", "1", "2", "3-5", "6+"]
+premium_buckets = [100, 200, 400]
+hold_buckets = [3, 10, 30]
+trade_of_day_buckets = ["1st", "2nd", "3rd", "4th-5th", "6th+"]
+trade_of_day_edges = [1, 2, 3, 5]
+gap_open_pct = 0.5
+moneyness_atm_steps = 1
+top_pct = 5
+other_class_max_share = 0.10
+handoff_cut_order = [11, 9, 8, 7, 5, 6, 10]
